@@ -360,50 +360,56 @@ const App: React.FC = () => {
               </div>
 
               <div className={`max-w-[85%] flex flex-col gap-1 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                <div className={`px-4 py-3 relative group/msg shadow-lg ${
-                  msg.role === 'user' ? 'bg-[#0F0F0F] border-r-4 border-[#D4AF37] text-gray-200' : 'bg-[#080808] border-l-4 border-[#D4AF37] text-gray-100'
-                }`}>
-                  {/* Styled Copy Button for messages */}
-                  <button 
-                    onClick={() => handleCopyMessage(msg)} 
-                    className="absolute top-1.5 right-1.5 flex items-center gap-1 px-1.5 py-0.5 bg-[#0D0D0D] border border-[#D4AF37]/20 opacity-0 group-hover/msg:opacity-100 text-[#D4AF37]/60 hover:text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-all z-10"
-                  >
-                    {copiedId === msg.id ? (
-                      <span className="text-[7px] font-bold uppercase tracking-widest flex items-center gap-1">
-                        <Check className="w-2.5 h-2.5" /> COPIED
-                      </span>
-                    ) : (
-                      <span className="text-[7px] font-bold uppercase tracking-widest flex items-center gap-1">
-                        <Copy className="w-2.5 h-2.5" /> COPY
-                      </span>
-                    )}
-                  </button>
+                {/* Horizontal wrapper to place actions to the right/left of the bubble */}
+                <div className={`flex items-start gap-2 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                  <div className={`px-4 py-3 relative group/msg shadow-lg ${
+                    msg.role === 'user' ? 'bg-[#0F0F0F] border-r-4 border-[#D4AF37] text-gray-200' : 'bg-[#080808] border-l-4 border-[#D4AF37] text-gray-100'
+                  }`}>
+                    <div className="prose prose-invert prose-xs max-w-none prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent prose-strong:text-[#D4AF37]">
+                      <ReactMarkdown
+                        components={{
+                          code(props) {
+                            const {children, className, ...rest} = props as any;
+                            const isInline = !className;
+                            return isInline ? (
+                              <code {...rest} className="font-mono text-[#D4AF37] bg-[#D4AF37]/10 px-1.5 py-0.5 border border-[#D4AF37]/20">
+                                {children}
+                              </code>
+                            ) : (
+                              <CodeBlock className={className} children={children} />
+                            );
+                          }
+                        }}
+                      >
+                        {msg.content}
+                      </ReactMarkdown>
+                      {msg.role === 'assistant' && msg.content === '' && isLoading && (
+                        <span className="inline-block w-1.5 h-4 bg-[#D4AF37] animate-pulse"></span>
+                      )}
+                    </div>
+                  </div>
 
-                  <div className="prose prose-invert prose-xs max-w-none prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent prose-strong:text-[#D4AF37]">
-                    <ReactMarkdown
-                      components={{
-                        code(props) {
-                          const {children, className, ...rest} = props as any;
-                          const isInline = !className;
-                          return isInline ? (
-                            <code {...rest} className="font-mono text-[#D4AF37] bg-[#D4AF37]/10 px-1.5 py-0.5 border border-[#D4AF37]/20">
-                              {children}
-                            </code>
-                          ) : (
-                            <CodeBlock className={className} children={children} />
-                          );
-                        }
-                      }}
+                  {/* AI Copy Button - Placed to the right for AI messages, matching code block button style */}
+                  {msg.role === 'assistant' && (
+                    <button 
+                      onClick={() => handleCopyMessage(msg)} 
+                      className="mt-1 flex items-center gap-1.5 px-2 py-1 bg-[#0D0D0D] border border-[#D4AF37]/20 opacity-0 group-hover:opacity-100 text-[#D4AF37]/60 hover:text-[#D4AF37] hover:border-[#D4AF37]/50 transition-all z-10 shadow-sm"
                     >
-                      {msg.content}
-                    </ReactMarkdown>
-                    {msg.role === 'assistant' && msg.content === '' && isLoading && (
-                      <span className="inline-block w-1.5 h-4 bg-[#D4AF37] animate-pulse"></span>
-                    )}
-                  </div>
-                  <div className={`mt-2 text-[8px] uppercase tracking-widest text-[#D4AF37]/20 font-mono ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
-                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </div>
+                      {copiedId === msg.id ? (
+                        <span className="text-[7px] font-bold uppercase tracking-[0.2em] flex items-center gap-1">
+                          <Check className="w-2.5 h-2.5" /> COPIED
+                        </span>
+                      ) : (
+                        <span className="text-[7px] font-bold uppercase tracking-[0.2em] flex items-center gap-1">
+                          <Copy className="w-2.5 h-2.5" /> COPY
+                        </span>
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                <div className={`mt-1 text-[8px] uppercase tracking-widest text-[#D4AF37]/20 font-mono ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+                  {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
             </div>
@@ -443,4 +449,56 @@ const App: React.FC = () => {
                   className="w-full bg-transparent text-white p-4 focus:outline-none resize-none min-h-[60px] font-mono text-[13px] placeholder-[#D4AF37]/10 transition-all duration-300 focus:bg-black/20"
                 />
                 
-                <div className="flex flex-col justify-end p-2 bg-[#0D0D0D
+                <div className="flex flex-col justify-end p-2 bg-[#0D0D0D] border-l border-[#D4AF37]/20">
+                  {isLoading ? (
+                    <button 
+                      onClick={handleStopGeneration}
+                      className="group relative h-11 w-11 flex items-center justify-center overflow-hidden transition-all active:scale-90"
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-br from-[#FF4D4D] to-[#800000]"></div>
+                      <Square className="relative w-5 h-5 text-white fill-white" />
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={() => handleSendMessage()}
+                      disabled={!input.trim()}
+                      className="group relative h-11 w-11 flex items-center justify-center overflow-hidden transition-all active:scale-95 disabled:opacity-5 disabled:grayscale shadow-sm"
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-br from-[#FFD700] via-[#D4AF37] to-[#8B7355]"></div>
+                      <Send className="relative w-5 h-5 text-black transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+          <p className="text-center text-[8px] text-[#D4AF37]/10 mt-3 tracking-[0.4em] uppercase font-mono font-bold">
+            PREMIUM COMPUTATION INTERFACE
+          </p>
+        </div>
+      </main>
+
+      {/* MINIMAL FOOTER */}
+      <footer className="h-8 flex items-center justify-between px-3 bg-[#D4AF37] text-black text-[10px] font-black tracking-widest overflow-hidden">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 px-2">
+            <Cpu className="w-3.5 h-3.5" />
+            <span className="uppercase">G9_CORE_ACTIVE</span>
+          </div>
+          <div className="h-3 w-px bg-black/20"></div>
+          <div className="flex items-center gap-1.5 px-2">
+            <div className="w-1.5 h-1.5 bg-black animate-pulse"></div>
+            <span className="uppercase">SYNC_STABLE</span>
+          </div>
+        </div>
+        <div className="flex items-center h-full">
+          <div className="p-2 border-l border-black/10">
+            <Settings className="w-3.5 h-3.5" />
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+};
+
+export default App;

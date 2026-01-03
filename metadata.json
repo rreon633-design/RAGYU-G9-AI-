@@ -1,0 +1,7 @@
+{
+  "name": "G9 AI",
+  "description": "A luxury VS Code-style AI chat interface featuring a gold and black aesthetic with premium typography and a square input design.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

@@ -28,7 +28,9 @@ import {
   Square,
   X,
   MessageSquare,
-  Calendar
+  Calendar,
+  Scissors,
+  ChevronRight
 } from './components/Icons';
 import { Message, ChatSession } from './types';
 import { generateAIResponseStream } from './services/geminiService';
@@ -103,6 +105,7 @@ const App: React.FC = () => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   
   const scrollRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -110,10 +113,13 @@ const App: React.FC = () => {
     localStorage.setItem('g9_sessions', JSON.stringify(sessions));
   }, [sessions]);
 
+  // Automatic scroll to bottom logic
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
+  };
+
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    scrollToBottom(isLoading ? 'auto' : 'smooth');
   }, [messages, isLoading]);
 
   const insertMarkdown = (prefix: string, suffix: string = '') => {
@@ -204,6 +210,7 @@ const App: React.FC = () => {
         return current;
       });
     } catch (error: any) {
+      if (error.name === 'AbortError') return;
       setMessages(prev => prev.map(msg => msg.id === assistantMessageId ? { ...msg, content: msg.content + "\n\n_System Error._" } : msg));
     } finally {
       setIsLoading(false);
@@ -255,6 +262,27 @@ const App: React.FC = () => {
     navigator.clipboard.writeText(msg.content);
     setCopiedId(msg.id);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleRegenerate = (msgIndex: number) => {
+    const historyBefore = messages.slice(0, msgIndex);
+    const lastUserMsg = [...historyBefore].reverse().find(m => m.role === 'user');
+    if (lastUserMsg) {
+      setMessages(messages.slice(0, msgIndex));
+      handleSendMessage(lastUserMsg.content);
+    }
+  };
+
+  const handleRefine = (instruction: string) => {
+    if (isLoading) return;
+    handleSendMessage(instruction);
+  };
+
+  const handleEditUserPrompt = (content: string) => {
+    setInput(content);
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
   };
 
   return (
@@ -351,7 +379,7 @@ const App: React.FC = () => {
       {/* CHAT AREA - REDUCED PADDING */}
       <main className="flex-1 overflow-hidden flex flex-col relative bg-[#050505]">
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 space-y-6 scroll-smooth custom-scrollbar">
-          {messages.map((msg) => (
+          {messages.map((msg, idx) => (
             <div key={msg.id} className={`flex gap-4 group ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
               <div className={`flex-shrink-0 w-9 h-9 flex items-center justify-center border transition-all ${
                 msg.role === 'user' ? 'bg-[#151515] border-[#D4AF37]/30' : 'bg-black border-[#D4AF37] shadow-[0_0_15px_rgba(212,175,55,0.05)]'
@@ -360,7 +388,7 @@ const App: React.FC = () => {
               </div>
 
               <div className={`max-w-[85%] flex flex-col gap-1 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                {/* Horizontal wrapper to place actions to the right/left of the bubble */}
+                {/* Horizontal wrapper */}
                 <div className={`flex items-start gap-2 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
                   <div className={`px-4 py-3 relative group/msg shadow-lg ${
                     msg.role === 'user' ? 'bg-[#0F0F0F] border-r-4 border-[#D4AF37] text-gray-200' : 'bg-[#080808] border-l-4 border-[#D4AF37] text-gray-100'
@@ -387,25 +415,74 @@ const App: React.FC = () => {
                         <span className="inline-block w-1.5 h-4 bg-[#D4AF37] animate-pulse"></span>
                       )}
                     </div>
-                  </div>
 
-                  {/* AI Copy Button - Placed to the right for AI messages, matching code block button style */}
-                  {msg.role === 'assistant' && (
-                    <button 
-                      onClick={() => handleCopyMessage(msg)} 
-                      className="mt-1 flex items-center gap-1.5 px-2 py-1 bg-[#0D0D0D] border border-[#D4AF37]/20 opacity-0 group-hover:opacity-100 text-[#D4AF37]/60 hover:text-[#D4AF37] hover:border-[#D4AF37]/50 transition-all z-10 shadow-sm"
-                    >
-                      {copiedId === msg.id ? (
-                        <span className="text-[7px] font-bold uppercase tracking-[0.2em] flex items-center gap-1">
-                          <Check className="w-2.5 h-2.5" /> COPIED
-                        </span>
-                      ) : (
-                        <span className="text-[7px] font-bold uppercase tracking-[0.2em] flex items-center gap-1">
-                          <Copy className="w-2.5 h-2.5" /> COPY
-                        </span>
-                      )}
-                    </button>
-                  )}
+                    {/* ACTION BUTTONS FOR ASSISTANT RESPONSE */}
+                    {msg.role === 'assistant' && msg.content !== '' && (
+                      <div className="mt-4 pt-4 border-t border-[#D4AF37]/10 flex flex-wrap gap-2 opacity-0 group-hover/msg:opacity-100 transition-opacity">
+                        <button 
+                          onClick={() => handleCopyMessage(msg)}
+                          className="flex items-center gap-1 px-2 py-1 bg-[#0D0D0D] border border-[#D4AF37]/20 text-[#D4AF37]/60 hover:text-[#D4AF37] hover:border-[#D4AF37]/50 transition-all"
+                        >
+                          <span className="text-[7px] font-bold uppercase tracking-[0.15em] flex items-center gap-1.5">
+                            {copiedId === msg.id ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2.5 h-2.5" />}
+                            {copiedId === msg.id ? 'COPIED' : 'COPY'}
+                          </span>
+                        </button>
+                        
+                        {!isLoading && idx === messages.length - 1 && (
+                          <>
+                            <button 
+                              onClick={() => handleRegenerate(idx)}
+                              className="flex items-center gap-1 px-2 py-1 bg-[#0D0D0D] border border-[#D4AF37]/20 text-[#D4AF37]/60 hover:text-[#D4AF37] hover:border-[#D4AF37]/50 transition-all"
+                            >
+                              <span className="text-[7px] font-bold uppercase tracking-[0.15em] flex items-center gap-1.5">
+                                <RefreshCw className="w-2.5 h-2.5" /> REGENERATE
+                              </span>
+                            </button>
+                            <button 
+                              onClick={() => handleRefine("Make the previous response significantly shorter and more concise.")}
+                              className="flex items-center gap-1 px-2 py-1 bg-[#0D0D0D] border border-[#D4AF37]/20 text-[#D4AF37]/60 hover:text-[#D4AF37] hover:border-[#D4AF37]/50 transition-all"
+                            >
+                              <span className="text-[7px] font-bold uppercase tracking-[0.15em] flex items-center gap-1.5">
+                                <Scissors className="w-2.5 h-2.5" /> MAKE SHORTER
+                              </span>
+                            </button>
+                            <button 
+                              onClick={() => handleRefine("Provide a much more detailed and comprehensive explanation for the previous response.")}
+                              className="flex items-center gap-1 px-2 py-1 bg-[#0D0D0D] border border-[#D4AF37]/20 text-[#D4AF37]/60 hover:text-[#D4AF37] hover:border-[#D4AF37]/50 transition-all"
+                            >
+                              <span className="text-[7px] font-bold uppercase tracking-[0.15em] flex items-center gap-1.5">
+                                <Maximize2 className="w-2.5 h-2.5" /> MAKE LONGER
+                              </span>
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ACTION BUTTONS FOR USER PROMPT */}
+                    {msg.role === 'user' && (
+                      <div className="mt-3 pt-3 border-t border-[#D4AF37]/10 flex flex-wrap gap-2 justify-end opacity-0 group-hover/msg:opacity-100 transition-opacity">
+                         <button 
+                          onClick={() => handleEditUserPrompt(msg.content)}
+                          className="flex items-center gap-1 px-2 py-1 bg-[#0D0D0D] border border-[#D4AF37]/20 text-[#D4AF37]/60 hover:text-[#D4AF37] hover:border-[#D4AF37]/50 transition-all"
+                        >
+                          <span className="text-[7px] font-bold uppercase tracking-[0.15em] flex items-center gap-1.5">
+                            <Pencil className="w-2.5 h-2.5" /> EDIT
+                          </span>
+                        </button>
+                        <button 
+                          onClick={() => handleCopyMessage(msg)}
+                          className="flex items-center gap-1 px-2 py-1 bg-[#0D0D0D] border border-[#D4AF37]/20 text-[#D4AF37]/60 hover:text-[#D4AF37] hover:border-[#D4AF37]/50 transition-all"
+                        >
+                          <span className="text-[7px] font-bold uppercase tracking-[0.15em] flex items-center gap-1.5">
+                            {copiedId === msg.id ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2.5 h-2.5" />}
+                            {copiedId === msg.id ? 'COPIED' : 'COPY'}
+                          </span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className={`mt-1 text-[8px] uppercase tracking-widest text-[#D4AF37]/20 font-mono ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
@@ -420,6 +497,8 @@ const App: React.FC = () => {
               <div className="h-12 w-64 bg-[#080808] border-l-4 border-[#D4AF37]/10" />
             </div>
           )}
+          {/* Scroll anchor */}
+          <div ref={messagesEndRef} className="h-2" />
         </div>
 
         {/* MINIMAL INPUT SECTION */}
